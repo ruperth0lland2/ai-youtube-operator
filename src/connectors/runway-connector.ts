@@ -1,56 +1,117 @@
 import { env } from "../config/env.js";
-import type { Scene } from "../models/scene.js";
 import { withRetry } from "../utils/retry.js";
 import { HttpClient } from "./http-client.js";
 
-export interface RenderResult {
-  provider: "runway";
-  renderId: string;
-  status: "queued" | "completed";
-  outputUrl?: string;
+export interface RunwayCreateVideoJobInput {
+  prompt: string;
+  imageRefs?: string[];
+  videoRefs?: string[];
+  ratio?: string;
 }
 
-export class RunwayConnector {
+export interface RunwayVideoJob {
+  jobId: string;
+  responseId: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  outputUri?: string;
+  error?: string;
+}
+
+export interface RunwayDownloadResult {
+  jobId: string;
+  outputUri: string;
+}
+
+export class RunwayService {
   constructor(private readonly httpClient: HttpClient) {}
 
-  async renderVideo(videoId: string, scenes: Scene[]): Promise<RenderResult> {
+  async createVideoJob(prompt: string, imageRefs?: string[], videoRefs?: string[]): Promise<RunwayVideoJob> {
     return withRetry(
       async () => {
         if (!env.RUNWAY_API_KEY) {
+          const jobId = `mock-runway-${Date.now()}`;
           return {
-            provider: "runway",
-            renderId: `mock-runway-${videoId}-${Date.now()}`,
+            jobId,
+            responseId: jobId,
             status: "completed",
-            outputUrl: `https://example.local/runway/${videoId}`,
+            outputUri: `https://example.local/runway/${jobId}.mp4`,
           };
         }
 
-        const promptText = scenes.map((scene) => `${scene.index}. ${scene.visualPrompt}`).join("\n");
-        const response = await this.httpClient.request<{ id: string; outputUrl?: string }>({
-          operation: `runway-render-${videoId}`,
+        const response = await this.httpClient.request<{ id: string; status?: string; outputUri?: string }>({
+          operation: "runway.createVideoJob",
           method: "POST",
           url: `${env.RUNWAY_BASE_URL}/generations`,
           headers: {
             Authorization: `Bearer ${env.RUNWAY_API_KEY}`,
           },
           body: {
-            promptText,
+            prompt,
+            imageRefs: imageRefs ?? [],
+            videoRefs: videoRefs ?? [],
             ratio: "16:9",
-          },
+          } satisfies RunwayCreateVideoJobInput,
         });
 
         return {
-          provider: "runway",
-          renderId: response.id,
-          status: "queued",
-          outputUrl: response.outputUrl,
+          jobId: response.id,
+          responseId: response.id,
+          status: (response.status as RunwayVideoJob["status"]) ?? "queued",
+          outputUri: response.outputUri,
         };
       },
       {
-        operation: `runway connector ${videoId}`,
+        operation: "runway.createVideoJob",
         attempts: env.MAX_RETRIES,
         baseDelayMs: env.RETRY_BASE_DELAY_MS,
       },
     );
+  }
+
+  async getVideoJob(jobId: string): Promise<RunwayVideoJob> {
+    return withRetry(
+      async () => {
+        if (!env.RUNWAY_API_KEY) {
+          return {
+            jobId,
+            responseId: jobId,
+            status: "completed",
+            outputUri: `https://example.local/runway/${jobId}.mp4`,
+          };
+        }
+
+        const response = await this.httpClient.request<{ id?: string; status?: string; outputUri?: string }>({
+          operation: "runway.getVideoJob",
+          method: "GET",
+          url: `${env.RUNWAY_BASE_URL}/generations/${jobId}`,
+          headers: {
+            Authorization: `Bearer ${env.RUNWAY_API_KEY}`,
+          },
+        });
+
+        return {
+          jobId: response.id ?? jobId,
+          responseId: response.id ?? jobId,
+          status: (response.status as RunwayVideoJob["status"]) ?? "processing",
+          outputUri: response.outputUri,
+        };
+      },
+      {
+        operation: "runway.getVideoJob",
+        attempts: env.MAX_RETRIES,
+        baseDelayMs: env.RETRY_BASE_DELAY_MS,
+      },
+    );
+  }
+
+  async downloadVideo(jobId: string): Promise<RunwayDownloadResult> {
+    const job = await this.getVideoJob(jobId);
+    if (!job.outputUri) {
+      throw new Error(`Runway job ${jobId} has no output URI`);
+    }
+    return {
+      jobId,
+      outputUri: job.outputUri,
+    };
   }
 }

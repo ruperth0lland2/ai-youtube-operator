@@ -72,6 +72,17 @@ export class ProjectStorage {
     return filePath;
   }
 
+  async writeProviderJobs(
+    videoId: string,
+    providerJobs: unknown,
+    fileName = "provider-jobs.json",
+  ): Promise<string> {
+    await this.ensureProjectFolders(videoId);
+    const filePath = this.resolve(videoId, "renders", fileName);
+    await writeJsonFile(filePath, providerJobs);
+    return filePath;
+  }
+
   async writeUpload(videoId: string, uploadReceipt: unknown, fileName = "upload.json"): Promise<string> {
     await this.ensureProjectFolders(videoId);
     const filePath = this.resolve(videoId, "upload", fileName);

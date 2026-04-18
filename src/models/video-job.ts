@@ -16,7 +16,17 @@ export interface VideoAssets {
   audioPath?: string;
   scenesPath?: string;
   renderPath?: string;
+  providerJobsPath?: string;
   uploadPath?: string;
+}
+
+export interface SceneProviderJobRecord {
+  sceneId: string;
+  provider: "runway" | "veo";
+  submittedAt: string;
+  providerJobId: string;
+  status: string;
+  outputUri?: string;
 }
 
 export interface UploadPayload {
@@ -37,6 +47,7 @@ export interface VideoJob {
   script?: string;
   scenes: Scene[];
   renderProvider: RenderProvider;
+  providerJobIds?: SceneProviderJobRecord[];
   assets: VideoAssets;
   uploadUrl?: string;
   createdAt: string;

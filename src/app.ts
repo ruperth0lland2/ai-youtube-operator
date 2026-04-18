@@ -2,8 +2,8 @@ import express from "express";
 import { env } from "./config/env.js";
 import { HttpClient } from "./connectors/http-client.js";
 import { ElevenLabsConnector } from "./connectors/elevenlabs-connector.js";
-import { RunwayConnector } from "./connectors/runway-connector.js";
-import { VeoConnector } from "./connectors/veo-connector.js";
+import { RunwayService } from "./connectors/runway-connector.js";
+import { VeoService } from "./connectors/veo-connector.js";
 import { YouTubeConnector } from "./connectors/youtube-connector.js";
 import { JsonJobQueue } from "./queue/json-job-queue.js";
 import { ResearchBriefService } from "./services/research-brief-service.js";
@@ -29,8 +29,8 @@ export function createApp(): express.Express {
 
   const httpClient = new HttpClient();
   const tts = new ElevenLabsConnector(httpClient);
-  const runway = new RunwayConnector(httpClient);
-  const veo = new VeoConnector(httpClient);
+  const runway = new RunwayService(httpClient);
+  const veo = new VeoService(httpClient);
   const youtube = new YouTubeConnector(httpClient);
 
   const researchBrief = new ResearchBriefService();

@@ -18,6 +18,8 @@ const envSchema = z.object({
   RUNWAY_BASE_URL: z.string().default("https://api.runwayml.com/v1"),
   GOOGLE_VEO_API_KEY: z.string().optional(),
   GOOGLE_VEO_BASE_URL: z.string().default("https://generativelanguage.googleapis.com/v1beta"),
+  VEO_POLL_INTERVAL_MS: z.coerce.number().default(3000),
+  VEO_POLL_MAX_ATTEMPTS: z.coerce.number().default(20),
   YOUTUBE_API_KEY: z.string().optional(),
   YOUTUBE_CLIENT_ID: z.string().optional(),
   YOUTUBE_CLIENT_SECRET: z.string().optional(),

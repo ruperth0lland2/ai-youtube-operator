@@ -1,7 +1,7 @@
-import type { RenderProvider, VideoJob } from "../models/video-job.js";
+import type { RenderProvider, SceneProviderJobRecord, VideoJob } from "../models/video-job.js";
 import { env } from "../config/env.js";
-import { RunwayConnector } from "../connectors/runway-connector.js";
-import { VeoConnector } from "../connectors/veo-connector.js";
+import { RunwayService } from "../connectors/runway-connector.js";
+import { VeoService } from "../connectors/veo-connector.js";
 import { JsonJobQueue } from "../queue/json-job-queue.js";
 import { ProjectStorage } from "../storage/project-storage.js";
 import { logger } from "../utils/logger.js";
@@ -23,8 +23,8 @@ export class VideoJobRunnerService {
     private readonly antiSlopQaService: AntiSlopQaService,
     private readonly voiceoverGeneratorService: VoiceoverGeneratorService,
     private readonly scenePlannerService: ScenePlannerService,
-    private readonly runwayConnector: RunwayConnector,
-    private readonly veoConnector: VeoConnector,
+    private readonly runwayService: RunwayService,
+    private readonly veoService: VeoService,
     private readonly uploadManagerService: UploadManagerService,
   ) {}
 
@@ -135,16 +135,16 @@ export class VideoJobRunnerService {
       return job;
     }
 
-    const renderProvider = provider ?? job.renderProvider;
-    const renderResult =
-      renderProvider === "runway"
-        ? await this.runwayConnector.renderVideo(videoId, job.scenes)
-        : await this.veoConnector.renderVideo(videoId, job.scenes);
-
-    const renderPath = await this.storage.writeRender(videoId, renderResult);
+    const sceneRenderJobs = await this.renderScenes(videoId, job, provider);
+    const renderManifest = {
+      videoId,
+      generatedAt: new Date().toISOString(),
+      scenes: sceneRenderJobs,
+    };
+    const renderPath = await this.storage.writeRender(videoId, renderManifest);
     const uploaded = await this.uploadManagerService.upload({
       ...job,
-      renderProvider,
+      renderProvider: provider ?? job.renderProvider,
       assets: {
         ...job.assets,
         renderPath,
@@ -152,14 +152,56 @@ export class VideoJobRunnerService {
     });
 
     return this.queue.updateJob(videoId, {
-      renderProvider,
+      renderProvider: provider ?? job.renderProvider,
       assets: {
         ...job.assets,
         renderPath,
         uploadPath: uploaded.uploadPath,
       },
+      providerJobIds: sceneRenderJobs,
       uploadUrl: uploaded.uploadUrl,
     });
+  }
+
+  private async renderScenes(
+    videoId: string,
+    job: VideoJob,
+    providerOverride?: RenderProvider,
+  ): Promise<SceneProviderJobRecord[]> {
+    const renderJobs: SceneProviderJobRecord[] = [];
+
+    for (const scene of job.scenes) {
+      const selectedProvider = providerOverride ?? scene.generator_provider;
+
+      if (selectedProvider === "veo") {
+        const submit = await this.veoService.submitGeneration(scene.prompt);
+        const operation = await this.veoService.pollUntilDone(submit.operationName);
+        const output = await this.veoService.downloadVideo(submit.operationName);
+        renderJobs.push({
+          sceneId: scene.scene_id,
+          provider: "veo",
+          providerJobId: submit.jobId,
+          submittedAt: new Date().toISOString(),
+          status: operation.metadata?.state ?? "completed",
+          outputUri: output.outputUri,
+        });
+        continue;
+      }
+
+      const create = await this.runwayService.createVideoJob(scene.prompt);
+      await this.runwayService.getVideoJob(create.jobId);
+      const output = await this.runwayService.downloadVideo(create.jobId);
+      renderJobs.push({
+        sceneId: scene.scene_id,
+        provider: "runway",
+        providerJobId: create.jobId,
+        submittedAt: new Date().toISOString(),
+        status: "completed",
+        outputUri: output.outputUri,
+      });
+    }
+
+    return renderJobs;
   }
 
   async listJobs(): Promise<VideoJob[]> {

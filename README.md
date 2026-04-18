@@ -49,7 +49,16 @@ Production-ready TypeScript app for running an AI-assisted YouTube channel with:
    - Service: `src/services/voiceover-generator-service.ts`
 
 5. **scene_planner**
-   - Converts script text into scene prompts and scene timing.
+   - Converts one script into **12-20** structured scenes with provider routing metadata.
+   - Scene schema includes:
+     - `scene_id`
+     - `duration_target`
+     - `visual_goal`
+     - `shot_type`
+     - `motion_type`
+     - `generator_provider`
+     - `prompt`
+     - `fallback_prompt`
    - Service: `src/services/scene-planner-service.ts`
 
 6. **video_job_runner**
@@ -178,7 +187,37 @@ Typical files:
 - `audio/voiceover.txt`
 - `scenes/scene-plan.json`
 - `renders/render.json`
+- `renders/provider-jobs.json`
 - `upload/upload.json`
+
+## Video provider implementation
+
+### Provider A: Runway
+`RunwayService` implements:
+- `createVideoJob(prompt, imageRefs?, videoRefs?)`
+- `getVideoJob(jobId)`
+- `downloadVideo(jobId)`
+
+### Provider B: Google Veo (Gemini flow)
+`VeoService` implements:
+- `submitGeneration(prompt)` for long-running generation
+- `getVideoJob(jobId)` for operation status checks
+- `pollUntilDone(jobId)` until operation completes
+- `downloadVideo(jobId)` to retrieve output video URI
+
+### Provider fallback logic
+
+The runner selects provider per scene:
+- **Runway** for standard scenes
+- **Veo** for hero shots or scenes where `premium=true`
+
+If a global provider override is passed, that override takes precedence for all scenes.
+
+### Provider response IDs for retries
+
+Per-scene provider jobs are persisted on the job and to artifact storage so retries can reuse IDs:
+- `VideoJob.sceneProviderJobs`
+- `/projects/{video_id}/renders/provider-jobs.json`
 
 ## Anti-slop QA rules
 
