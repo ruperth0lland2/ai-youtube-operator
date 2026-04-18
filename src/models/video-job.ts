@@ -12,6 +12,7 @@ export interface VideoApprovals {
 export interface VideoAssets {
   researchBriefPath?: string;
   scriptPath?: string;
+  qaReportPath?: string;
   audioPath?: string;
   scenesPath?: string;
   renderPath?: string;

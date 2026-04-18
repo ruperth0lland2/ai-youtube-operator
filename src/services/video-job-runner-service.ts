@@ -11,6 +11,7 @@ import { ScriptGeneratorService } from "./script-generator-service.js";
 import { TopicQueueService } from "./topic-queue-service.js";
 import { UploadManagerService } from "./upload-manager-service.js";
 import { VoiceoverGeneratorService } from "./voiceover-generator-service.js";
+import { AntiSlopQaService } from "./anti-slop-qa-service.js";
 
 export class VideoJobRunnerService {
   constructor(
@@ -19,6 +20,7 @@ export class VideoJobRunnerService {
     private readonly topicQueue: TopicQueueService,
     private readonly researchBriefService: ResearchBriefService,
     private readonly scriptGeneratorService: ScriptGeneratorService,
+    private readonly antiSlopQaService: AntiSlopQaService,
     private readonly voiceoverGeneratorService: VoiceoverGeneratorService,
     private readonly scenePlannerService: ScenePlannerService,
     private readonly runwayConnector: RunwayConnector,
@@ -48,6 +50,26 @@ export class VideoJobRunnerService {
     const briefPath = await this.storage.writeScript(videoId, brief, "research-brief.json");
     const script = this.scriptGeneratorService.generate(job.videoId, brief);
     const scriptPath = await this.storage.writeScript(videoId, script, "script.json");
+
+    const qaReport = this.antiSlopQaService.evaluate(videoId, script.fullText);
+    const qaReportPath = await this.storage.writeQaReport(videoId, qaReport);
+
+    if (!qaReport.passed) {
+      logger.warn("anti_slop_qa: script rejected", {
+        videoId,
+        reasons: qaReport.failures,
+      });
+      return this.queue.updateJob(videoId, {
+        lastError: `anti_slop_qa failed: ${qaReport.failures.join("; ")}`,
+        assets: {
+          ...job.assets,
+          researchBriefPath: briefPath,
+          scriptPath,
+          qaReportPath,
+        },
+      });
+    }
+
     const audioText = await this.voiceoverGeneratorService.generate(script);
     const audioPath = await this.storage.writeAudio(videoId, { provider: "elevenlabs", content: audioText });
     const scenePlan = this.scenePlannerService.generate(videoId, script.fullText);
@@ -61,6 +83,7 @@ export class VideoJobRunnerService {
       assets: {
         researchBriefPath: briefPath,
         scriptPath,
+        qaReportPath,
         audioPath,
         scenesPath,
       },

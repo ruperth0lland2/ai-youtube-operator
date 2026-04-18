@@ -19,6 +19,7 @@ Production-ready TypeScript app for running an AI-assisted YouTube channel with:
 - Local JSON queue/state storage
 - Enforced status progression:
   - `draft -> awaiting_approval -> approved_for_render`
+- Strict anti-slop QA gate with `qa_report.json` outputs
 - Approval web dashboard for:
   - approving a topic
   - approving a script
@@ -55,6 +56,13 @@ Production-ready TypeScript app for running an AI-assisted YouTube channel with:
    - Orchestrates the full pipeline with strict status transitions.
    - Service: `src/services/video-job-runner-service.ts`
 
+9. **anti_slop_qa**
+   - Deterministic script QA gate that enforces anti-slop standards.
+   - Rejects scripts that feel like headline summaries or generic intros.
+   - Requires opinion, business example, surprising detail, counterpoint, and closing takeaway.
+   - Enforces narrator style constraints.
+   - Service: `src/services/anti-slop-qa-service.ts`
+
 7. **upload_manager**
    - Uploads rendered output via YouTube connector (or mock fallback).
    - Service: `src/services/upload-manager-service.ts`
@@ -72,7 +80,7 @@ Every video job follows this required status progression:
 `draft -> awaiting_approval -> approved_for_render`
 
 - `draft`: job initialized from approved topic.
-- `awaiting_approval`: research/script/voiceover/scenes prepared, waiting approvals.
+- `awaiting_approval`: research/script/QA/audio/scenes prepared, waiting approvals.
 - `approved_for_render`: script and final render approved, ready to render+upload.
 
 ## Project structure
@@ -166,10 +174,47 @@ Typical files:
 
 - `script/research-brief.json`
 - `script/script.json`
+- `script/qa_report.json`
 - `audio/voiceover.txt`
 - `scenes/scene-plan.json`
 - `renders/render.json`
 - `upload/upload.json`
+
+## Anti-slop QA rules
+
+The draft stage now includes a strict QA layer that blocks progression if script quality is weak.
+
+### Hard rejections
+- Reject scripts that sound like headline summarization / recap content.
+- Reject intros beginning with:
+  - `In today's video`
+  - `Welcome back`
+  - `AI is changing everything`
+
+### Required content signals
+Each script must include:
+- one strong opinion
+- one concrete business example
+- one surprising detail
+- one counterpoint
+- one closing takeaway
+
+### Narrator style constraints
+- sharp, slightly cynical, competent operator tone
+- short to medium sentences
+- no hype words
+- no emoji
+- no robotic transitions
+
+### QA output artifact
+- A machine-readable report is written to:
+  - `/projects/{video_id}/script/qa_report.json`
+- Contains:
+  - `passed` boolean
+  - per-rule check results
+  - failure reasons
+
+If QA fails, the job remains in `draft` and includes failure reasons in `lastError`.
 
 ## API endpoints
 

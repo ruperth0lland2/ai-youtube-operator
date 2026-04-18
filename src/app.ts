@@ -13,6 +13,7 @@ import { TopicQueueService } from "./services/topic-queue-service.js";
 import { UploadManagerService } from "./services/upload-manager-service.js";
 import { VideoJobRunnerService } from "./services/video-job-runner-service.js";
 import { VoiceoverGeneratorService } from "./services/voiceover-generator-service.js";
+import { AntiSlopQaService } from "./services/anti-slop-qa-service.js";
 import { ProjectStorage } from "./storage/project-storage.js";
 import { logger } from "./utils/logger.js";
 import { createApprovalDashboardRouter } from "./web/approval-dashboard-routes.js";
@@ -34,6 +35,7 @@ export function createApp(): express.Express {
 
   const researchBrief = new ResearchBriefService();
   const scriptGenerator = new ScriptGeneratorService();
+  const antiSlopQa = new AntiSlopQaService();
   const voiceover = new VoiceoverGeneratorService(tts);
   const scenePlanner = new ScenePlannerService();
   const uploadManager = new UploadManagerService(youtube, storage);
@@ -43,6 +45,7 @@ export function createApp(): express.Express {
     topicQueue,
     researchBrief,
     scriptGenerator,
+    antiSlopQa,
     voiceover,
     scenePlanner,
     runway,

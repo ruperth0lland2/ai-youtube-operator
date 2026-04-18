@@ -32,6 +32,13 @@ export class ProjectStorage {
     return filePath;
   }
 
+  async writeQaReport(videoId: string, report: unknown, fileName = "qa_report.json"): Promise<string> {
+    await this.ensureProjectFolders(videoId);
+    const filePath = this.resolve(videoId, "script", fileName);
+    await writeJsonFile(filePath, report);
+    return filePath;
+  }
+
   async writeAudio(videoId: string, audioContent: unknown, fileName = "voiceover.txt"): Promise<string> {
     await this.ensureProjectFolders(videoId);
     const filePath = this.resolve(videoId, "audio", fileName);
