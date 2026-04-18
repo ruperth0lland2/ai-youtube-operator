@@ -1,0 +1,39 @@
+{
+  "name": "ai-youtube-operator",
+  "version": "1.0.0",
+  "description": "Production-ready TypeScript app for an AI-run YouTube channel",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ruperth0lland2/ai-youtube-operator.git"
+  },
+  "keywords": [
+    "typescript",
+    "youtube",
+    "automation",
+    "ai"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ruperth0lland2/ai-youtube-operator/issues"
+  },
+  "homepage": "https://github.com/ruperth0lland2/ai-youtube-operator#readme",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "uuid": "^13.0.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.6.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  }
+}
