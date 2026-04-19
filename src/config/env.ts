@@ -1,0 +1,50 @@
+import dotenv from "dotenv";
+import { z } from "zod";
+
+dotenv.config();
+
+const envSchema = z.object({
+  PORT: z.coerce.number().default(3000),
+  PRODUCTION_MODE: z.coerce.boolean().default(false),
+  DRY_RUN_MODE: z.coerce.boolean().default(false),
+  USE_SQLITE: z.coerce.boolean().default(true),
+  DATA_DIR: z.string().default("data"),
+  PROJECTS_DIR: z.string().default("projects"),
+  LOGS_DIR: z.string().default("logs"),
+  QUEUE_FILE: z.string().default("data/jobs.json"),
+  TOPICS_FILE: z.string().default("data/topics.json"),
+  SQLITE_DB_PATH: z.string().default("data/app.db"),
+  DEFAULT_RENDER_PROVIDER: z.enum(["runway", "veo"]).default("runway"),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  ANTHROPIC_MODEL: z.string().default("claude-3-5-sonnet-20241022"),
+  ELEVENLABS_API_KEY: z.string().optional(),
+  ELEVENLABS_VOICE_ID: z.string().default("EXAVITQu4vr4xnSDxMaL"),
+  ELEVENLABS_BASE_URL: z.string().default("https://api.elevenlabs.io/v1"),
+  CHANNEL_BIBLE_FILE: z.string().default("CHANNEL_BIBLE.md"),
+  RUNWAY_API_KEY: z.string().optional(),
+  RUNWAY_BASE_URL: z.string().default("https://api.dev.runwayml.com/v1"),
+  GOOGLE_VEO_API_KEY: z.string().optional(),
+  GOOGLE_VEO_BASE_URL: z.string().default("https://generativelanguage.googleapis.com/v1beta"),
+  VEO_POLL_INTERVAL_MS: z.coerce.number().default(3000),
+  VEO_POLL_MAX_ATTEMPTS: z.coerce.number().default(20),
+  YOUTUBE_API_KEY: z.string().optional(),
+  YOUTUBE_CLIENT_ID: z.string().optional(),
+  YOUTUBE_CLIENT_SECRET: z.string().optional(),
+  YOUTUBE_REFRESH_TOKEN: z.string().optional(),
+  YOUTUBE_BASE_URL: z.string().default("https://www.googleapis.com/upload/youtube/v3"),
+  YOUTUBE_CLIENT_SECRETS_FILE: z.string().default("client_secrets.json"),
+  YOUTUBE_TOKEN_FILE: z.string().default("data/youtube_oauth_token.json"),
+  YOUTUBE_OAUTH_REDIRECT_URI: z.string().default("http://127.0.0.1:53682/oauth2callback"),
+  YOUTUBE_OAUTH_TIMEOUT_MS: z.coerce.number().default(300000),
+  YOUTUBE_UPLOAD_MAX_RETRIES: z.coerce.number().default(5),
+  DASHBOARD_PASSWORD: z.string().optional(),
+  DASHBOARD_SESSION_COOKIE: z.string().default("dashboard_session"),
+  POLLING_INTERVAL_MS: z.coerce.number().default(10000),
+  PROVIDER_MAX_CONCURRENCY: z.coerce.number().default(2),
+  UPLOAD_POLICY_FILE: z.string().default("data/upload-policy.json"),
+  MAX_RETRIES: z.coerce.number().default(3),
+  RETRY_BASE_DELAY_MS: z.coerce.number().default(500),
+  HTTP_TIMEOUT_MS: z.coerce.number().default(30000),
+});
+
+export const env = envSchema.parse(process.env);
