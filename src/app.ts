@@ -15,6 +15,7 @@ import { UploadManagerService } from "./services/upload-manager-service.js";
 import { VideoJobRunnerService } from "./services/video-job-runner-service.js";
 import { VoiceoverGeneratorService } from "./services/voiceover-generator-service.js";
 import { AntiSlopQaService } from "./services/anti-slop-qa-service.js";
+import { ChannelIdentityService } from "./services/channel-identity-service.js";
 import { ProjectStorage } from "./storage/project-storage.js";
 import { logger } from "./utils/logger.js";
 import { createApprovalDashboardRouter } from "./web/approval-dashboard-routes.js";
@@ -35,6 +36,7 @@ export function createApp(): express.Express {
   const youtube = new YouTubeConnector(new YouTubeUploader());
 
   const researchBrief = new ResearchBriefService();
+  const channelIdentity = new ChannelIdentityService();
   const scriptGenerator = new ScriptGeneratorService();
   const antiSlopQa = new AntiSlopQaService();
   const voiceover = new VoiceoverGeneratorService(tts);
@@ -47,6 +49,7 @@ export function createApp(): express.Express {
     researchBrief,
     scriptGenerator,
     antiSlopQa,
+    channelIdentity,
     voiceover,
     scenePlanner,
     runway,

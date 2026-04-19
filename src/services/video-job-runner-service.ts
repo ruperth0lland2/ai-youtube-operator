@@ -12,6 +12,7 @@ import { TopicQueueService } from "./topic-queue-service.js";
 import { UploadManagerService } from "./upload-manager-service.js";
 import { VoiceoverGeneratorService } from "./voiceover-generator-service.js";
 import { AntiSlopQaService } from "./anti-slop-qa-service.js";
+import { ChannelIdentityService } from "./channel-identity-service.js";
 
 export class VideoJobRunnerService {
   constructor(
@@ -21,6 +22,7 @@ export class VideoJobRunnerService {
     private readonly researchBriefService: ResearchBriefService,
     private readonly scriptGeneratorService: ScriptGeneratorService,
     private readonly antiSlopQaService: AntiSlopQaService,
+    private readonly channelIdentityService: ChannelIdentityService,
     private readonly voiceoverGeneratorService: VoiceoverGeneratorService,
     private readonly scenePlannerService: ScenePlannerService,
     private readonly runwayService: RunwayService,
@@ -48,7 +50,9 @@ export class VideoJobRunnerService {
 
     const brief = this.researchBriefService.generate(job.videoId, job.topicTitle, "");
     const briefPath = await this.storage.writeScript(videoId, brief, "research-brief.json");
-    const script = this.scriptGeneratorService.generate(job.videoId, brief);
+    const channelIdentity = this.channelIdentityService.getIdentity();
+    const narratorProfile = await this.channelIdentityService.loadOrCreateNarratorProfile(videoId);
+    const script = this.scriptGeneratorService.generate(job.videoId, brief, channelIdentity);
     const scriptPath = await this.storage.writeScript(videoId, script, "script.json");
 
     const qaReport = this.antiSlopQaService.evaluate(videoId, script.fullText);
@@ -70,9 +74,9 @@ export class VideoJobRunnerService {
       });
     }
 
-    const audioText = await this.voiceoverGeneratorService.generate(script);
+    const audioText = await this.voiceoverGeneratorService.generate(script, narratorProfile);
     const audioPath = await this.storage.writeAudio(videoId, { provider: "elevenlabs", content: audioText });
-    const scenePlan = this.scenePlannerService.generate(videoId, script.fullText);
+    const scenePlan = this.scenePlannerService.generate(videoId, script.fullText, channelIdentity);
     const scenesPath = await this.storage.writeScenes(videoId, scenePlan);
 
     return this.queue.updateJob(videoId, {

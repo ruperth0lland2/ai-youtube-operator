@@ -99,6 +99,51 @@ Every video job follows this required status progression:
 - `awaiting_approval`: research/script/QA/audio/scenes prepared, waiting approvals.
 - `approved_for_render`: script and final render approved, ready to render+upload.
 
+## Channel identity and style contract
+
+Channel identity:
+- Documentary-style breakdowns of broken business systems and how AI would redesign them.
+
+Narrator:
+- Male or female voice, fixed forever once chosen.
+- Sounds like an operator, not a presenter.
+- Slightly dry, intelligent, skeptical.
+- Never sounds excited for no reason.
+
+### Banned language
+
+The following phrases are hard-banned:
+- `In today's video`
+- `Welcome back`
+- `game-changer`
+- `revolutionary`
+- `let's dive in`
+- `smash the like button`
+- `AI is taking over`
+
+### Required script structure
+
+Every script must follow this shape:
+1. Hook with a hard claim
+2. Explain the failing system
+3. Show the hidden mechanism
+4. Rebuild it with AI
+5. End with the lesson
+
+### Visual style guardrails
+
+- Dark neutral UI
+- Cinematic but restrained
+- Diagrams, overlays, mock dashboards, maps, short generated inserts
+- No endless stock footage
+- No random flashy transitions
+
+### Quality bar
+
+- Every video must contain one memorable line
+- Every scene must visually teach something
+- Every script must feel like it has a point of view
+
 ## Project structure
 
 ```text

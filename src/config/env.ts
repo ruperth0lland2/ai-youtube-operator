@@ -14,6 +14,7 @@ const envSchema = z.object({
   ELEVENLABS_API_KEY: z.string().optional(),
   ELEVENLABS_VOICE_ID: z.string().default("EXAVITQu4vr4xnSDxMaL"),
   ELEVENLABS_BASE_URL: z.string().default("https://api.elevenlabs.io/v1"),
+  CHANNEL_PROFILE_FILE: z.string().default("data/channel_profile.json"),
   RUNWAY_API_KEY: z.string().optional(),
   RUNWAY_BASE_URL: z.string().default("https://api.runwayml.com/v1"),
   GOOGLE_VEO_API_KEY: z.string().optional(),

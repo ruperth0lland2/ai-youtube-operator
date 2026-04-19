@@ -1,14 +1,15 @@
 import type { Scene, ScenePlan } from "../models/scene.js";
+import type { ChannelIdentity } from "../models/channel-profile.js";
 
 const SHOT_TYPES: Scene["shot_type"][] = ["wide", "medium", "closeup", "hero", "overlay", "broll"];
 const MOTION_TYPES: Scene["motion_type"][] = ["static", "pan", "tilt", "dolly", "tracking", "zoom"];
 
 export class ScenePlannerService {
-  generate(videoId: string, script: string): ScenePlan {
-    return this.plan(videoId, script);
+  generate(videoId: string, script: string, identity: ChannelIdentity): ScenePlan {
+    return this.plan(videoId, script, identity);
   }
 
-  plan(videoId: string, script: string): ScenePlan {
+  plan(videoId: string, script: string, identity: ChannelIdentity): ScenePlan {
     const baseLines = script
       .split("\n")
       .map((line) => line.trim())
@@ -40,25 +41,32 @@ export class ScenePlannerService {
       scenes.push({
         scene_id: sceneId,
         duration_target: durationTarget,
-        visual_goal: `Translate "${seed}" into a high-signal visual beat`,
+        visual_goal: `Teach one concrete idea from "${seed}" using restrained documentary visuals`,
         shot_type: shotType,
         motion_type: motionType,
         premium,
         generator_provider: generatorProvider,
         narration: seed,
         prompt: [
-          "16:9 cinematic scene",
+          "16:9 cinematic scene, restrained pacing",
+          "dark neutral UI visual language",
+          "diagram/overlay/mock dashboard/map/short generated insert only",
+          "every scene must teach a concrete mechanism",
+          "no endless stock footage",
+          "no random flashy transitions",
           `goal: ${seed}`,
           `shot_type: ${shotType}`,
           `motion: ${motionType}`,
-          "tone: sharp, grounded, operator-focused",
+          `series premise: ${identity.positioning}`,
+          "tone: sharp, skeptical, operator-focused",
           "high production quality, realistic lighting, no text overlay",
         ].join("; "),
         fallback_prompt: [
-          "16:9 clean b-roll",
-          `business context: ${seed}`,
-          "clear subject, stable framing, neutral grade",
-          "no logos, no text, no subtitles",
+          "16:9 restrained documentary insert",
+          "dark neutral interface treatment",
+          `business mechanism focus: ${seed}`,
+          "use overlays/diagrams to explain one operational point",
+          "stable framing, no flashy transition, no logo clutter",
         ].join("; "),
       });
     }

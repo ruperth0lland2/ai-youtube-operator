@@ -6,6 +6,7 @@ import { HttpClient } from "./http-client.js";
 export interface ElevenLabsRequest {
   videoId: string;
   text: string;
+  voiceId?: string;
 }
 
 export class ElevenLabsConnector {
@@ -19,7 +20,8 @@ export class ElevenLabsConnector {
           return `MOCK_TTS(${req.videoId}): ${req.text}`;
         }
 
-        const endpoint = `${env.ELEVENLABS_BASE_URL}/text-to-speech/${env.ELEVENLABS_VOICE_ID}`;
+        const voiceId = req.voiceId ?? env.ELEVENLABS_VOICE_ID;
+        const endpoint = `${env.ELEVENLABS_BASE_URL}/text-to-speech/${voiceId}`;
         const response = await this.httpClient.request<{ audio_base64?: string; rawText?: string }>({
           operation: `ElevenLabs TTS ${req.videoId}`,
           method: "POST",

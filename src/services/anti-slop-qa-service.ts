@@ -48,6 +48,16 @@ const SUMMARY_MARKERS = [
   "news roundup",
 ];
 
+const CHANNEL_BANNED_LANGUAGE = [
+  "in today's video",
+  "welcome back",
+  "game-changer",
+  "revolutionary",
+  "let's dive in",
+  "smash the like button",
+  "ai is taking over",
+];
+
 function hasStrongOpinion(text: string): boolean {
   return /\b(i think|i believe|my take|my view|i'm convinced|this is a mistake|this is wrong|this is overrated)\b/i.test(
     text,
@@ -70,6 +80,44 @@ function hasSurprisingDetail(text: string): boolean {
 
 function hasCounterpoint(text: string): boolean {
   return /\b(however|but here's the catch|to be fair|on the other hand|the counterpoint)\b/i.test(text);
+}
+
+function hasHardClaimHook(text: string): boolean {
+  const first = text
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.length > 0)
+    ?.toLowerCase();
+  if (!first) {
+    return false;
+  }
+  return /(\bis\b.+\b(broken|wrong|failing|wasteful|fragile|dead)\b)|(\bthis\b.+\bwill\b.+\b(break|fail)\b)/i.test(
+    first,
+  );
+}
+
+function hasSection(text: string, sectionHeading: string): boolean {
+  const pattern = new RegExp(`^\\s*${sectionHeading}\\s*:?\\s*$`, "im");
+  return pattern.test(text);
+}
+
+function hasScriptStructure(text: string): boolean {
+  return (
+    hasSection(text, "hook") &&
+    hasSection(text, "failing system") &&
+    hasSection(text, "hidden mechanism") &&
+    hasSection(text, "ai redesign") &&
+    hasSection(text, "lesson")
+  );
+}
+
+function hasMemorableLine(text: string): boolean {
+  return /(^|\n)\s*(\*\*memorable line:\*\*|memorable line:)\s*.+/i.test(text);
+}
+
+function hasAnyBannedLanguage(text: string): boolean {
+  const lower = text.toLowerCase();
+  return CHANNEL_BANNED_LANGUAGE.some((term) => lower.includes(term));
 }
 
 function hasClosingTakeaway(text: string): boolean {
@@ -144,6 +192,10 @@ function hasSharpCynicalOperatorTone(text: string): boolean {
   return hits >= 2;
 }
 
+function hasPresenterTone(text: string): boolean {
+  return /\b(host|audience|subscribe now|thanks for watching)\b/i.test(text);
+}
+
 export class AntiSlopQaService {
   evaluate(videoId: string, scriptText: string): QaReport {
     const checks: QaRuleResult[] = [
@@ -156,6 +208,16 @@ export class AntiSlopQaService {
         rule: "reject_generic_intro_phrases",
         passed: !hasBannedIntro(scriptText),
         reason: "Intro must avoid banned generic openings.",
+      },
+      {
+        rule: "reject_channel_banned_language",
+        passed: !hasAnyBannedLanguage(scriptText),
+        reason: "Script contains channel banned language.",
+      },
+      {
+        rule: "require_hard_claim_hook",
+        passed: hasHardClaimHook(scriptText),
+        reason: "Hook must open with a hard claim.",
       },
       {
         rule: "require_strong_opinion",
@@ -183,9 +245,25 @@ export class AntiSlopQaService {
         reason: "Script must contain one closing takeaway.",
       },
       {
+        rule: "require_script_structure",
+        passed: hasScriptStructure(scriptText),
+        reason:
+          "Script must follow the required structure: hook, failing system, hidden mechanism, AI redesign, lesson.",
+      },
+      {
+        rule: "require_memorable_line",
+        passed: hasMemorableLine(scriptText),
+        reason: "Script must contain one memorable line.",
+      },
+      {
         rule: "style_sharp_slightly_cynical_competent_operator",
         passed: hasSharpCynicalOperatorTone(scriptText),
         reason: "Narrator voice should sound like a sharp, slightly cynical, competent operator.",
+      },
+      {
+        rule: "style_not_presenter_tone",
+        passed: !hasPresenterTone(scriptText),
+        reason: "Narrator should sound like an operator, not a presenter.",
       },
       {
         rule: "style_short_to_medium_sentences",
