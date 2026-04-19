@@ -5,6 +5,7 @@ import { ElevenLabsConnector } from "./connectors/elevenlabs-connector.js";
 import { RunwayService } from "./connectors/runway-connector.js";
 import { VeoService } from "./connectors/veo-connector.js";
 import { YouTubeConnector } from "./connectors/youtube-connector.js";
+import { YouTubeUploader } from "./connectors/youtube-uploader.js";
 import { JsonJobQueue } from "./queue/json-job-queue.js";
 import { ResearchBriefService } from "./services/research-brief-service.js";
 import { ScenePlannerService } from "./services/scene-planner-service.js";
@@ -31,7 +32,7 @@ export function createApp(): express.Express {
   const tts = new ElevenLabsConnector(httpClient);
   const runway = new RunwayService(httpClient);
   const veo = new VeoService(httpClient);
-  const youtube = new YouTubeConnector(httpClient);
+  const youtube = new YouTubeConnector(new YouTubeUploader());
 
   const researchBrief = new ResearchBriefService();
   const scriptGenerator = new ScriptGeneratorService();

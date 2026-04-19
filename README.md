@@ -15,7 +15,7 @@ Production-ready TypeScript app for running an AI-assisted YouTube channel with:
   - ElevenLabs TTS
   - Runway video API
   - Google Veo video API
-  - YouTube Data API upload
+  - YouTube Data API upload (OAuth 2.0 local consent + resumable uploads)
 - Local JSON queue/state storage
 - Enforced status progression:
   - `draft -> awaiting_approval -> approved_for_render`
@@ -73,8 +73,15 @@ Production-ready TypeScript app for running an AI-assisted YouTube channel with:
    - Service: `src/services/anti-slop-qa-service.ts`
 
 7. **upload_manager**
-   - Uploads rendered output via YouTube connector (or mock fallback).
+   - Uploads rendered output via YouTube OAuth connector.
    - Service: `src/services/upload-manager-service.ts`
+
+10. **youtube_uploader**
+   - OAuth 2.0 browser-based one-time consent flow.
+   - Reads OAuth credentials from `client_secrets.json`.
+   - Requests **only** `https://www.googleapis.com/auth/youtube.upload`.
+   - Uses resumable upload with retry logic.
+   - Module: `src/connectors/youtube-uploader.ts`
 
 8. **approval_dashboard**
    - Browser dashboard for human-in-the-loop approvals.
@@ -132,7 +139,9 @@ Fill API keys as needed:
 - `ELEVENLABS_API_KEY`
 - `RUNWAY_API_KEY`
 - `GOOGLE_VEO_API_KEY`
-- `YOUTUBE_API_KEY` (plus optional OAuth fields)
+- `YOUTUBE_API_KEY` (optional, not required by OAuth uploader)
+
+For OAuth upload flow, place `client_secrets.json` at repo root (or set `YOUTUBE_CLIENT_SECRETS_FILE`).
 
 If keys are missing, connectors fall back to deterministic mock behavior so local development still works.
 
@@ -167,7 +176,7 @@ npm start
    - Moves status to `approved_for_render`.
 6. Click **Run render + upload**.
    - Calls Runway or Veo based on job provider.
-   - Uploads result to YouTube connector.
+   - Uploads result via OAuth uploader.
 
 ## Output storage by `video_id`
 
@@ -189,6 +198,7 @@ Typical files:
 - `renders/render.json`
 - `renders/provider-jobs.json`
 - `upload/upload.json`
+- `upload/result.json`
 
 ## Video provider implementation
 
@@ -218,6 +228,32 @@ If a global provider override is passed, that override takes precedence for all 
 Per-scene provider jobs are persisted on the job and to artifact storage so retries can reuse IDs:
 - `VideoJob.sceneProviderJobs`
 - `/projects/{video_id}/renders/provider-jobs.json`
+
+## YouTube uploader module
+
+The uploader supports:
+- title
+- description
+- tags
+- categoryId
+- privacyStatus
+- scheduled publish timestamp (`publishAt`)
+
+Behavior:
+- First uploads default to `private`.
+- OAuth 2.0 local browser consent flow (one-time; tokens cached).
+- Scope requested: `youtube.upload` only.
+- Resumable uploads with retry logic.
+
+Upload result file written to:
+- `/projects/{video_id}/upload/result.json`
+
+Result shape includes:
+- `youtube_video_id`
+- `upload_time`
+- `final_title`
+- `final_description`
+- `thumbnail_status`
 
 ## Anti-slop QA rules
 

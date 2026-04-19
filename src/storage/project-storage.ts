@@ -93,4 +93,8 @@ export class ProjectStorage {
     }
     return filePath;
   }
+
+  async writeUploadResult(videoId: string, uploadResult: unknown): Promise<string> {
+    return this.writeUpload(videoId, uploadResult, "result.json");
+  }
 }

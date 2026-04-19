@@ -6,8 +6,12 @@ import { YouTubeConnector } from "../connectors/youtube-connector.js";
 export interface UploadManagerResult {
   provider: "youtube";
   uploadId: string;
+  youtubeVideoId: string;
   uploadUrl: string;
   uploadedAt: string;
+  finalTitle: string;
+  finalDescription: string;
+  thumbnailStatus: "missing" | "pending" | "uploaded" | "unknown";
   uploadPath: string;
 }
 
@@ -29,17 +33,23 @@ export class UploadManagerService {
 
     const uploadPayload = {
       provider: "youtube",
-      uploadId: result.uploadId,
-      url: result.videoUrl,
-      uploadedAt: new Date().toISOString(),
+      youtube_video_id: result.youtubeVideoId,
+      upload_time: result.uploadTime,
+      final_title: result.finalTitle,
+      final_description: result.finalDescription,
+      thumbnail_status: result.thumbnailStatus,
     };
-    const uploadPath = await this.storage.writeUpload(videoJob.videoId, uploadPayload);
+    const uploadPath = await this.storage.writeUpload(videoJob.videoId, uploadPayload, "result.json");
 
     return {
       provider: "youtube",
-      uploadId: uploadPayload.uploadId,
-      uploadUrl: uploadPayload.url,
-      uploadedAt: uploadPayload.uploadedAt,
+      uploadId: result.youtubeVideoId,
+      youtubeVideoId: result.youtubeVideoId,
+      uploadUrl: result.videoUrl,
+      uploadedAt: result.uploadTime,
+      finalTitle: result.finalTitle,
+      finalDescription: result.finalDescription,
+      thumbnailStatus: result.thumbnailStatus,
       uploadPath,
     };
   }

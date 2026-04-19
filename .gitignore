@@ -4,3 +4,4 @@ dist/
 data/*.json
 logs/
 projects/
+youtube_tokens/
