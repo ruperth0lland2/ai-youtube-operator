@@ -4,6 +4,10 @@ export interface ScriptDraft {
   title: string;
   sections: string[];
   memorableLine: string;
+  concreteExample: string;
+  surprisingDetail: string;
+  counterpoint: string;
+  closingTakeaway: string;
   structure: {
     hookHardClaim: string;
     failingSystem: string;

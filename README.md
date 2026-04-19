@@ -352,9 +352,33 @@ If QA fails, the job remains in `draft` and includes failure reasons in `lastErr
   - centralized HTTP client (`src/connectors/http-client.ts`)
 - Logs are emitted to console and `logs/app.log`.
 
-## Notes for production hardening
+## Production Checklist
 
-- Replace simulated connector fallback behavior with strict failure mode if required.
-- Add background worker / scheduler for polling async render jobs.
-- Add auth to dashboard routes.
-- Add persistent DB (SQLite/Postgres) if you need multi-process coordination.
+Set these environment variables before production launch:
+
+- `PRODUCTION_MODE=true`
+- `DRY_RUN_MODE=false`
+- `ANTHROPIC_API_KEY`
+- `ANTHROPIC_MODEL` (default: `claude-3-5-sonnet-20241022`)
+- `ELEVENLABS_API_KEY`
+- `ELEVENLABS_VOICE_ID`
+- `RUNWAY_API_KEY`
+- `RUNWAY_BASE_URL` (default: `https://api.dev.runwayml.com/v1`)
+- `GOOGLE_VEO_API_KEY`
+- `GOOGLE_VEO_BASE_URL`
+- `YOUTUBE_CLIENT_SECRETS_FILE` (must exist and be valid JSON)
+- `YOUTUBE_TOKEN_FILE`
+- `YOUTUBE_UPLOAD_MAX_RETRIES`
+- `DASHBOARD_PASSWORD` (required to protect `/dashboard`)
+- `USE_SQLITE=true`
+- `SQLITE_DB_PATH`
+- `PROVIDER_MAX_CONCURRENCY=2`
+- `POLLING_INTERVAL_MS=10000`
+
+Additional production checks:
+
+- Ensure `CHANNEL_BIBLE.md` is present and up to date.
+- Ensure ffmpeg static binary is available through `ffmpeg-static`.
+- Verify YouTube OAuth consent flow once to seed token cache.
+- Keep `DRY_RUN_MODE=false` for real uploads.
+- Publish policy is enforced: first 10 uploads are forced private.

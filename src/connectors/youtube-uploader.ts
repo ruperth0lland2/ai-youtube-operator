@@ -32,6 +32,7 @@ export interface UploadVideoOptions {
   categoryId?: string;
   privacyStatus?: "private" | "public" | "unlisted";
   scheduledPublishAt?: string;
+  forcePrivate?: boolean;
 }
 
 export interface UploadVideoResult {
@@ -42,6 +43,7 @@ export interface UploadVideoResult {
   thumbnailStatus: "pending" | "missing" | "uploaded" | "unknown";
   videoUrl: string;
   privacyStatus: "private" | "public" | "unlisted";
+  effectivePrivacyStatus: "private" | "public" | "unlisted";
   scheduledPublishAt?: string;
 }
 
@@ -75,9 +77,13 @@ export class YouTubeUploader {
 
         const privacyStatus = options.privacyStatus ?? "private";
         const effectivePrivacy =
-          options.scheduledPublishAt && privacyStatus !== "private" ? "private" : privacyStatus;
+          options.forcePrivate || (options.scheduledPublishAt && privacyStatus !== "private")
+            ? "private"
+            : privacyStatus;
 
-        if (options.scheduledPublishAt && privacyStatus !== "private") {
+        if (options.forcePrivate) {
+          logger.warn("Upload privacy forced to private by publish policy");
+        } else if (options.scheduledPublishAt && privacyStatus !== "private") {
           logger.warn("Scheduled publish forces privacyStatus=private on YouTube", {
             requested: privacyStatus,
           });
@@ -118,7 +124,8 @@ export class YouTubeUploader {
           finalDescription,
           thumbnailStatus,
           videoUrl: `https://youtube.com/watch?v=${youtubeVideoId}`,
-          privacyStatus: effectivePrivacy,
+          privacyStatus,
+          effectivePrivacyStatus: effectivePrivacy,
           scheduledPublishAt: options.scheduledPublishAt,
         };
       },

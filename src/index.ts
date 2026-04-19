@@ -3,12 +3,13 @@ import { env } from "./config/env.js";
 import { logger } from "./utils/logger.js";
 
 async function main(): Promise<void> {
-  const app = createApp();
+  const { app, poller } = createApp();
   app.listen(env.PORT, () => {
     logger.info("AI YouTube Operator running", {
       port: env.PORT,
       dashboard: `http://localhost:${env.PORT}/`,
     });
+    poller.start();
   });
 }
 

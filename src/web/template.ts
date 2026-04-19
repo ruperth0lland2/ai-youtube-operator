@@ -44,6 +44,12 @@ export function renderDashboard(topics: Topic[], jobs: VideoJob[]): string {
         <td><code>${escapeHtml(job.videoId)}</code></td>
         <td>${escapeHtml(job.topicTitle)}</td>
         <td>${badge(job.status)}</td>
+        <td>${escapeHtml(job.lastError ?? "-")}</td>
+        <td>${job.assets.qaReportPath ? "pass artifact" : "unknown"}</td>
+        <td><pre style="white-space:pre-wrap;max-width:360px">${escapeHtml(
+          JSON.stringify(job.providerJobIds ?? [], null, 2),
+        )}</pre></td>
+        <td>${escapeHtml(job.uploadResult?.youtubeVideoId ?? "-")}</td>
         <td>${job.approvals.topicApproved ? "yes" : "no"}</td>
         <td>${job.approvals.scriptApproved ? "yes" : "no"}</td>
         <td>${job.approvals.finalRenderApproved ? "yes" : "no"}</td>
@@ -97,8 +103,8 @@ export function renderDashboard(topics: Topic[], jobs: VideoJob[]): string {
   </table>
   <h2>video_job_runner queue</h2>
   <table>
-    <thead><tr><th>video_id</th><th>Topic</th><th>Status</th><th>Topic approved</th><th>Script approved</th><th>Final render approved</th><th>Actions</th></tr></thead>
-    <tbody>${jobRows || `<tr><td colspan="7">No jobs yet.</td></tr>`}</tbody>
+    <thead><tr><th>video_id</th><th>Topic</th><th>Status</th><th>lastError</th><th>QA pass/fail</th><th>Scene provider jobs</th><th>Upload result</th><th>Topic approved</th><th>Script approved</th><th>Final render approved</th><th>Actions</th></tr></thead>
+    <tbody>${jobRows || `<tr><td colspan="11">No jobs yet.</td></tr>`}</tbody>
   </table>
 </body>
 </html>`;

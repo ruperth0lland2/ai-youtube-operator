@@ -8,10 +8,12 @@ export class VoiceoverGeneratorService {
 
   async generate(script: ScriptDraft, narratorProfile: NarratorProfile): Promise<string> {
     logger.info("voiceover_generator: generating TTS audio", { videoId: script.videoId });
+    const outputPath = `projects/${script.videoId}/audio/voiceover.mp3`;
     return this.elevenLabsConnector.synthesizeVoiceover({
       videoId: script.videoId,
       text: script.fullText,
-      voiceId: narratorProfile.fixedVoiceId,
+      voiceId: narratorProfile.elevenLabsVoiceId,
+      outputPath,
     });
   }
 }

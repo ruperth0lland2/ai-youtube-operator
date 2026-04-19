@@ -23,3 +23,16 @@ export async function writeTextFile(filePath: string, content: string): Promise<
   await ensureDirectory(path.dirname(filePath));
   await writeFile(filePath, content, "utf-8");
 }
+
+export async function readTextFile(filePath: string): Promise<string> {
+  return readFile(filePath, "utf-8");
+}
+
+export async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await readFile(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}

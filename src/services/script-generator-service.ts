@@ -1,62 +1,85 @@
 import type { ResearchBrief } from "../models/research.js";
 import type { ScriptDraft } from "../models/script.js";
-import { logger } from "../utils/logger.js";
 import type { ChannelIdentity } from "../models/channel-profile.js";
+import { AnthropicConnector } from "../connectors/anthropic-connector.js";
+import { logger } from "../utils/logger.js";
+import { parseJsonObject } from "../utils/json-schema.js";
+
+const SCRIPT_RESPONSE_PROMPT = `
+Return ONLY valid JSON matching this exact shape:
+{
+  "hookHardClaim": "string",
+  "failingSystem": "string",
+  "hiddenMechanism": "string",
+  "aiRedesign": "string",
+  "lesson": "string",
+  "memorableLine": "string",
+  "concreteExample": "string",
+  "surprisingDetail": "string",
+  "counterpoint": "string",
+  "closingTakeaway": "string",
+  "fullText": "string"
+}`.trim();
+
+function buildScriptSystemPrompt(channelBible: string, identity: ChannelIdentity): string {
+  return [
+    "You write scripts for a documentary-style AI business channel.",
+    "",
+    "CHANNEL BIBLE:",
+    channelBible,
+    "",
+    "Identity constraints:",
+    `- Positioning: ${identity.positioning}`,
+    `- Narrator tone: ${identity.narratorTone.join(", ")}`,
+    `- Banned language: ${identity.bannedLanguage.join(" | ")}`,
+    `- Script structure: ${identity.scriptStructure.join(" -> ")}`,
+    `- Visual style: ${identity.visualStyle.join(", ")}`,
+    "- The script must have strong point of view and operator skepticism.",
+    "- Do not include markdown code fences.",
+    "- Do not include any text outside the JSON object.",
+  ].join("\n");
+}
 
 export class ScriptGeneratorService {
-  generate(videoId: string, brief: ResearchBrief, identity: ChannelIdentity): ScriptDraft {
+  constructor(private readonly anthropicConnector: AnthropicConnector) {}
+
+  private requireString(record: Record<string, unknown>, key: string): string {
+    const value = record[key];
+    if (typeof value !== "string" || !value.trim()) {
+      throw new Error(`script generation response missing string field: ${key}`);
+    }
+    return value.trim();
+  }
+
+  async generate(videoId: string, brief: ResearchBrief, identity: ChannelIdentity): Promise<ScriptDraft> {
     logger.info("script_generator: generating script", { videoId });
-    const title = `${brief.topicTitle}: the system is broken by design`;
-    const memorableLine =
-      "Bad systems are not broken by accident. They are maintained by people who benefit from the drag.";
-
-    const structure = {
-      hookHardClaim: `The current ${brief.topicTitle} workflow is optimized for internal comfort, not outcomes.`,
-      failingSystem:
-        "Teams add meetings, approvals, and dashboards, then wonder why latency and rework keep rising.",
-      hiddenMechanism:
-        "Incentives reward visible activity, so owners protect process complexity even when margins decay.",
-      aiRedesign:
-        "Map the decision chain, automate low-ambiguity steps, and keep human judgment at irreversible checkpoints.",
-      lesson:
-        "If a system cannot prove value per step, AI will expose the waste faster than any audit.",
-    };
-
-    const sections = [
-      `Strong opinion: most transformation programs are governance theater until operator incentives change.`,
-      `Concrete business example: a logistics broker cut quote turnaround from 9 hours to 38 minutes by moving triage, pricing bounds, and follow-up drafting into a constrained AI workflow; win-rate lifted 14%.`,
-      `Surprising detail: the biggest gain came from deleting internal status handoffs, not from a larger model.`,
-      `Counterpoint: AI redesign can fail when teams automate unstable policies and lock in bad assumptions at scale.`,
-      `Memorable line: ${memorableLine}`,
-    ];
-
-    const callToAction =
-      "Closing takeaway: redesign one failing workflow this week, instrument the result, and cut anything that cannot defend itself.";
-
-    const fullText = [
-      title,
-      "",
-      "Hook:",
-      structure.hookHardClaim,
-      "",
-      "Failing system:",
-      structure.failingSystem,
-      "",
-      "Hidden mechanism:",
-      structure.hiddenMechanism,
-      "",
-      "AI redesign:",
-      structure.aiRedesign,
-      "",
-      "Lesson:",
-      structure.lesson,
-      "",
-      ...sections,
-      "",
+    const channelBible = await this.anthropicConnector.getChannelBible();
+    const systemPrompt = buildScriptSystemPrompt(channelBible, identity);
+    const userPrompt = [
+      `Topic: ${brief.topicTitle}`,
+      `Research summary: ${brief.summary}`,
       `Audience: ${brief.audience}`,
-      `Channel stance: ${identity.positioning}`,
-      callToAction,
-    ].join("\n");
+      `Topic angles: ${brief.angles.join("; ")}`,
+      `Key points: ${brief.keyPoints.join("; ")}`,
+      SCRIPT_RESPONSE_PROMPT,
+    ].join("\n\n");
+
+    const output = await this.anthropicConnector.sendJsonPrompt(systemPrompt, userPrompt);
+    const parsed = parseJsonObject<Record<string, unknown>>(output, {}, "script generation response");
+    const title = `${brief.topicTitle}: documentary breakdown`;
+    const structure = {
+      hookHardClaim: this.requireString(parsed, "hookHardClaim"),
+      failingSystem: this.requireString(parsed, "failingSystem"),
+      hiddenMechanism: this.requireString(parsed, "hiddenMechanism"),
+      aiRedesign: this.requireString(parsed, "aiRedesign"),
+      lesson: this.requireString(parsed, "lesson"),
+    };
+    const sections = [
+      `Concrete example: ${this.requireString(parsed, "concreteExample")}`,
+      `Surprising detail: ${this.requireString(parsed, "surprisingDetail")}`,
+      `Counterpoint: ${this.requireString(parsed, "counterpoint")}`,
+      `Memorable line: ${this.requireString(parsed, "memorableLine")}`,
+    ];
 
     return {
       videoId,
@@ -64,9 +87,13 @@ export class ScriptGeneratorService {
       title,
       sections,
       structure,
-      memorableLine,
-      callToAction,
-      fullText,
+      memorableLine: this.requireString(parsed, "memorableLine"),
+      concreteExample: this.requireString(parsed, "concreteExample"),
+      surprisingDetail: this.requireString(parsed, "surprisingDetail"),
+      counterpoint: this.requireString(parsed, "counterpoint"),
+      closingTakeaway: this.requireString(parsed, "closingTakeaway"),
+      callToAction: this.requireString(parsed, "closingTakeaway"),
+      fullText: this.requireString(parsed, "fullText"),
       references: brief.sources,
     };
   }

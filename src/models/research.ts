@@ -3,6 +3,7 @@ export interface ResearchBrief {
   topicTitle: string;
   summary: string;
   keyPoints: string[];
+  angles: string[];
   audience: string;
   sources: string[];
 }

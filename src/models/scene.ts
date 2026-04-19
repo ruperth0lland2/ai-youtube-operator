@@ -30,6 +30,8 @@ export interface Scene {
   narration: string;
 }
 
+export type SceneJobStatus = "queued" | "processing" | "completed" | "failed";
+
 export interface ScenePlan {
   videoId: string;
   scenes: Scene[];

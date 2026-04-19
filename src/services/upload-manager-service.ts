@@ -12,14 +12,20 @@ export interface UploadManagerResult {
   finalTitle: string;
   finalDescription: string;
   thumbnailStatus: "missing" | "pending" | "uploaded" | "unknown";
+  effectivePrivacyStatus: "private" | "public" | "unlisted";
   uploadPath: string;
 }
 
 export class UploadManagerService {
   constructor(private readonly youtube: YouTubeConnector, private readonly storage: ProjectStorage) {}
 
-  async upload(videoJob: VideoJob): Promise<UploadManagerResult> {
-    if (!videoJob.assets.renderPath) {
+  async upload(
+    videoJob: VideoJob,
+    finalVideoPath?: string,
+    forcePrivate = false,
+  ): Promise<UploadManagerResult> {
+    const renderPath = finalVideoPath ?? videoJob.assets.renderPath;
+    if (!renderPath) {
       throw new Error("Render output missing; cannot upload");
     }
 
@@ -28,7 +34,8 @@ export class UploadManagerService {
       videoId: videoJob.videoId,
       title: videoJob.topicTitle,
       description: videoJob.researchBrief ?? "AI-generated YouTube video",
-      renderPath: videoJob.assets.renderPath,
+      filePath: renderPath,
+      forcePrivate,
     });
 
     const uploadPayload = {
@@ -38,6 +45,7 @@ export class UploadManagerService {
       final_title: result.finalTitle,
       final_description: result.finalDescription,
       thumbnail_status: result.thumbnailStatus,
+      effective_privacy_status: result.privacyStatus,
     };
     const uploadPath = await this.storage.writeUpload(videoJob.videoId, uploadPayload, "result.json");
 
@@ -50,6 +58,7 @@ export class UploadManagerService {
       finalTitle: result.finalTitle,
       finalDescription: result.finalDescription,
       thumbnailStatus: result.thumbnailStatus,
+      effectivePrivacyStatus: result.privacyStatus,
       uploadPath,
     };
   }

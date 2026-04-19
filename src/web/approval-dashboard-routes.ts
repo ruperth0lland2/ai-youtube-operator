@@ -4,6 +4,12 @@ import type { TopicQueueService } from "../services/topic-queue-service.js";
 import type { VideoJobRunnerService } from "../services/video-job-runner-service.js";
 import { renderDashboard } from "./template.js";
 import { logger } from "../utils/logger.js";
+import {
+  requireDashboardAuth,
+  setDashboardSession,
+  clearDashboardSession,
+} from "./dashboard-auth-middleware.js";
+import { env } from "../config/env.js";
 
 export function createApprovalDashboardRouter(
   topicQueue: TopicQueueService,
@@ -11,6 +17,35 @@ export function createApprovalDashboardRouter(
   runner: VideoJobRunnerService,
 ): Router {
   const router = Router();
+
+  router.get("/login", (_req, res) => {
+    res.status(200).send(`
+      <html><body style="font-family:Arial;padding:24px;">
+      <h2>Dashboard Login</h2>
+      <form method="post" action="/dashboard/login">
+        <input type="password" name="password" placeholder="Password" required />
+        <button type="submit">Sign in</button>
+      </form>
+      </body></html>
+    `);
+  });
+
+  router.post("/login", (req, res) => {
+    const password = String(req.body.password ?? "");
+    if (!env.DASHBOARD_PASSWORD || password !== env.DASHBOARD_PASSWORD) {
+      res.status(401).send("Invalid password");
+      return;
+    }
+    setDashboardSession(res);
+    res.redirect("/");
+  });
+
+  router.post("/logout", (_req, res) => {
+    clearDashboardSession(res);
+    res.redirect("/dashboard/login");
+  });
+
+  router.use(requireDashboardAuth);
 
   router.get("/", async (_req, res, next) => {
     try {
@@ -65,6 +100,19 @@ export function createApprovalDashboardRouter(
   router.post("/actions/jobs/:videoId/run", async (req, res, next) => {
     try {
       await runner.runApprovedJob(req.params.videoId);
+      res.redirect("/");
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/actions/pilot", async (_req, res, next) => {
+    try {
+      const topic = await topicQueue.addTopic(
+        "Why plumbing businesses lose leads after 5pm",
+        "Pilot seed topic to validate full workflow and approvals.",
+      );
+      await runner.approveTopic(topic.id);
       res.redirect("/");
     } catch (error) {
       next(error);

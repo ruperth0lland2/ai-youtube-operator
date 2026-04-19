@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { env } from "../config/env.js";
+import { AppError } from "../utils/app-error.js";
+import { ErrorCategory } from "../models/error-category.js";
 import { withRetry } from "../utils/retry.js";
 import { HttpClient } from "./http-client.js";
+import { providerConcurrencyLimiter } from "../utils/concurrency-limiter.js";
 
 export interface VeoOperation {
   name: string;
@@ -33,39 +36,38 @@ export class VeoService {
   constructor(private readonly httpClient: HttpClient) {}
 
   async submitGeneration(prompt: string): Promise<VeoSubmittedJob> {
-    return withRetry(
-      async () => {
-        if (!env.GOOGLE_VEO_API_KEY) {
-          const opName = `operations/mock-veo-${randomUUID()}`;
+    return providerConcurrencyLimiter.run(async () =>
+      withRetry(
+        async () => {
+          if (!env.GOOGLE_VEO_API_KEY) {
+            throw new AppError(
+              ErrorCategory.AUTH_ERROR,
+              "GOOGLE_VEO_API_KEY is required for Veo generation",
+            );
+          }
+
+          const response = await this.httpClient.request<{ name?: string }>({
+            operation: "veo.submit_generation",
+            method: "POST",
+            url: `${env.GOOGLE_VEO_BASE_URL}/models/veo:generateVideo?key=${env.GOOGLE_VEO_API_KEY}`,
+            body: {
+              prompt,
+            },
+          });
+          const operationName = response.name ?? `operations/veo-${randomUUID()}`;
           return {
             provider: "veo",
-            jobId: opName,
-            operationName: opName,
+            jobId: operationName,
+            operationName,
             status: "running",
           };
-        }
-
-        const response = await this.httpClient.request<{ name?: string }>({
+        },
+        {
           operation: "veo.submit_generation",
-          method: "POST",
-          url: `${env.GOOGLE_VEO_BASE_URL}/models/veo:generateVideo?key=${env.GOOGLE_VEO_API_KEY}`,
-          body: {
-            prompt,
-          },
-        });
-        const operationName = response.name ?? `operations/veo-${randomUUID()}`;
-        return {
-          provider: "veo",
-          jobId: operationName,
-          operationName,
-          status: "running",
-        };
-      },
-      {
-        operation: "veo.submit_generation",
-        attempts: env.MAX_RETRIES,
-        baseDelayMs: env.RETRY_BASE_DELAY_MS,
-      },
+          attempts: env.MAX_RETRIES,
+          baseDelayMs: env.RETRY_BASE_DELAY_MS,
+        },
+      ),
     );
   }
 
@@ -73,13 +75,10 @@ export class VeoService {
     return withRetry(
       async () => {
         if (!env.GOOGLE_VEO_API_KEY) {
-          return {
-            name: jobId,
-            done: true,
-            response: {
-              outputUri: `https://example.local/veo/${encodeURIComponent(jobId)}.mp4`,
-            },
-          };
+          throw new AppError(
+            ErrorCategory.AUTH_ERROR,
+            "GOOGLE_VEO_API_KEY is required for Veo polling",
+          );
         }
         return this.httpClient.request<VeoOperation>({
           operation: `veo.get_video_job:${jobId}`,

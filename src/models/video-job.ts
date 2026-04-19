@@ -27,6 +27,7 @@ export interface SceneProviderJobRecord {
   providerJobId: string;
   status: string;
   outputUri?: string;
+  localFilePath?: string;
 }
 
 export interface UploadPayload {
@@ -35,6 +36,15 @@ export interface UploadPayload {
   url: string;
   uploadedAt: string;
   uploadPath: string;
+}
+
+export interface UploadResultSummary {
+  youtubeVideoId: string;
+  uploadTime: string;
+  finalTitle: string;
+  finalDescription: string;
+  thumbnailStatus: "missing" | "pending" | "uploaded" | "unknown";
+  effectivePrivacyStatus: "private" | "public" | "unlisted";
 }
 
 export interface VideoJob {
@@ -50,6 +60,7 @@ export interface VideoJob {
   providerJobIds?: SceneProviderJobRecord[];
   assets: VideoAssets;
   uploadUrl?: string;
+  uploadResult?: UploadResultSummary;
   createdAt: string;
   updatedAt: string;
   lastError?: string;

@@ -5,7 +5,8 @@ export interface YouTubeUploadInput {
   videoId: string;
   title: string;
   description: string;
-  renderPath: string;
+  filePath: string;
+  forcePrivate?: boolean;
   tags?: string[];
   categoryId?: string;
   privacyStatus?: "private" | "public" | "unlisted";
@@ -20,6 +21,7 @@ export interface YouTubeUploadResult {
   thumbnailStatus: "pending" | "missing" | "uploaded" | "unknown";
   videoUrl: string;
   privacyStatus: "private" | "public" | "unlisted";
+  effectivePrivacyStatus: "private" | "public" | "unlisted";
   scheduledPublishAt?: string;
 }
 
@@ -32,9 +34,10 @@ export class YouTubeConnector {
 
   async uploadVideo(input: YouTubeUploadInput): Promise<YouTubeUploadResult> {
     const options: UploadVideoOptions = {
-      filePath: input.renderPath,
+      filePath: input.filePath,
       title: input.title,
       description: input.description,
+      forcePrivate: input.forcePrivate,
       tags: input.tags,
       categoryId: input.categoryId,
       privacyStatus: input.privacyStatus,

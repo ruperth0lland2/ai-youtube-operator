@@ -97,4 +97,12 @@ export class ProjectStorage {
   async writeUploadResult(videoId: string, uploadResult: unknown): Promise<string> {
     return this.writeUpload(videoId, uploadResult, "result.json");
   }
+
+  getRenderFilePath(videoId: string, fileName: string): string {
+    return this.resolve(videoId, "renders", fileName);
+  }
+
+  getAudioFilePath(videoId: string, fileName: string): string {
+    return this.resolve(videoId, "audio", fileName);
+  }
 }

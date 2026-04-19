@@ -1,4 +1,4 @@
-import type { RenderProvider, SceneProviderJobRecord, VideoJob } from "../models/video-job.js";
+import type { RenderProvider, SceneProviderJobRecord, VideoJob, UploadResultSummary } from "../models/video-job.js";
 import { env } from "../config/env.js";
 import { RunwayService } from "../connectors/runway-connector.js";
 import { VeoService } from "../connectors/veo-connector.js";
@@ -6,6 +6,7 @@ import { JsonJobQueue } from "../queue/json-job-queue.js";
 import { ProjectStorage } from "../storage/project-storage.js";
 import { logger } from "../utils/logger.js";
 import { ResearchBriefService } from "./research-brief-service.js";
+import type { Scene } from "../models/scene.js";
 import { ScenePlannerService } from "./scene-planner-service.js";
 import { ScriptGeneratorService } from "./script-generator-service.js";
 import { TopicQueueService } from "./topic-queue-service.js";
@@ -13,6 +14,8 @@ import { UploadManagerService } from "./upload-manager-service.js";
 import { VoiceoverGeneratorService } from "./voiceover-generator-service.js";
 import { AntiSlopQaService } from "./anti-slop-qa-service.js";
 import { ChannelIdentityService } from "./channel-identity-service.js";
+import { MediaDownloadService } from "./media-download-service.js";
+import { VideoAssemblyService } from "./video-assembly-service.js";
 
 export class VideoJobRunnerService {
   constructor(
@@ -27,6 +30,8 @@ export class VideoJobRunnerService {
     private readonly scenePlannerService: ScenePlannerService,
     private readonly runwayService: RunwayService,
     private readonly veoService: VeoService,
+    private readonly mediaDownloadService: MediaDownloadService,
+    private readonly videoAssemblyService: VideoAssemblyService,
     private readonly uploadManagerService: UploadManagerService,
   ) {}
 
@@ -48,11 +53,16 @@ export class VideoJobRunnerService {
       return job;
     }
 
-    const brief = this.researchBriefService.generate(job.videoId, job.topicTitle, "");
+    const topic = await this.topicQueue.getById(job.topicId);
+    const brief = await this.researchBriefService.generate(
+      job.videoId,
+      job.topicTitle,
+      topic?.description ?? "",
+    );
     const briefPath = await this.storage.writeScript(videoId, brief, "research-brief.json");
     const channelIdentity = this.channelIdentityService.getIdentity();
     const narratorProfile = await this.channelIdentityService.loadOrCreateNarratorProfile(videoId);
-    const script = this.scriptGeneratorService.generate(job.videoId, brief, channelIdentity);
+    const script = await this.scriptGeneratorService.generate(job.videoId, brief, channelIdentity);
     const scriptPath = await this.storage.writeScript(videoId, script, "script.json");
 
     const qaReport = this.antiSlopQaService.evaluate(videoId, script.fullText);
@@ -74,9 +84,8 @@ export class VideoJobRunnerService {
       });
     }
 
-    const audioText = await this.voiceoverGeneratorService.generate(script, narratorProfile);
-    const audioPath = await this.storage.writeAudio(videoId, { provider: "elevenlabs", content: audioText });
-    const scenePlan = this.scenePlannerService.generate(videoId, script.fullText, channelIdentity);
+    const audioPath = await this.voiceoverGeneratorService.generate(script, narratorProfile);
+    const scenePlan = await this.scenePlannerService.generate(videoId, script.fullText, channelIdentity);
     const scenesPath = await this.storage.writeScenes(videoId, scenePlan);
 
     return this.queue.updateJob(videoId, {
@@ -145,25 +154,54 @@ export class VideoJobRunnerService {
       generatedAt: new Date().toISOString(),
       scenes: sceneRenderJobs,
     };
-    const renderPath = await this.storage.writeRender(videoId, renderManifest);
-    const uploaded = await this.uploadManagerService.upload({
-      ...job,
-      renderProvider: provider ?? job.renderProvider,
-      assets: {
-        ...job.assets,
+    const providerJobsPath = await this.storage.writeProviderJobs(videoId, sceneRenderJobs);
+    await this.storage.writeRender(videoId, renderManifest);
+    if (!job.assets.audioPath) {
+      throw new Error("Audio path missing; cannot assemble final video.");
+    }
+    const renderPath = await this.videoAssemblyService.assemble(videoId, sceneRenderJobs, job.assets.audioPath);
+    let uploadResult: UploadResultSummary | undefined;
+    let uploadPath: string | undefined;
+    let uploadUrl: string | undefined;
+    if (env.DRY_RUN_MODE) {
+      logger.info("DRY_RUN_MODE enabled; upload skipped", { videoId, renderPath });
+    } else {
+      const forcePrivate = await this.shouldForcePrivateUpload(videoId);
+      const uploaded = await this.uploadManagerService.upload(
+        {
+          ...job,
+          renderProvider: provider ?? job.renderProvider,
+          assets: {
+            ...job.assets,
+            renderPath,
+          },
+        },
         renderPath,
-      },
-    });
+        forcePrivate,
+      );
+      uploadResult = {
+        youtubeVideoId: uploaded.youtubeVideoId,
+        uploadTime: uploaded.uploadedAt,
+        finalTitle: uploaded.finalTitle,
+        finalDescription: uploaded.finalDescription,
+        thumbnailStatus: uploaded.thumbnailStatus,
+        effectivePrivacyStatus: uploaded.effectivePrivacyStatus,
+      };
+      uploadPath = uploaded.uploadPath;
+      uploadUrl = uploaded.uploadUrl;
+    }
 
     return this.queue.updateJob(videoId, {
       renderProvider: provider ?? job.renderProvider,
       assets: {
         ...job.assets,
         renderPath,
-        uploadPath: uploaded.uploadPath,
+        providerJobsPath,
+        uploadPath,
       },
       providerJobIds: sceneRenderJobs,
-      uploadUrl: uploaded.uploadUrl,
+      uploadResult,
+      uploadUrl,
     });
   }
 
@@ -181,6 +219,11 @@ export class VideoJobRunnerService {
         const submit = await this.veoService.submitGeneration(scene.prompt);
         const operation = await this.veoService.pollUntilDone(submit.operationName);
         const output = await this.veoService.downloadVideo(submit.operationName);
+        const localFilePath = await this.mediaDownloadService.downloadSceneVideo(
+          videoId,
+          scene.scene_id,
+          output.outputUri,
+        );
         renderJobs.push({
           sceneId: scene.scene_id,
           provider: "veo",
@@ -188,13 +231,18 @@ export class VideoJobRunnerService {
           submittedAt: new Date().toISOString(),
           status: operation.metadata?.state ?? "completed",
           outputUri: output.outputUri,
+          localFilePath,
         });
         continue;
       }
 
       const create = await this.runwayService.createVideoJob(scene.prompt);
-      await this.runwayService.getVideoJob(create.jobId);
       const output = await this.runwayService.downloadVideo(create.jobId);
+      const localFilePath = await this.mediaDownloadService.downloadSceneVideo(
+        videoId,
+        scene.scene_id,
+        output.outputUri,
+      );
       renderJobs.push({
         sceneId: scene.scene_id,
         provider: "runway",
@@ -202,10 +250,108 @@ export class VideoJobRunnerService {
         submittedAt: new Date().toISOString(),
         status: "completed",
         outputUri: output.outputUri,
+        localFilePath,
       });
     }
 
     return renderJobs;
+  }
+
+  async pollInFlightForJob(videoId: string): Promise<void> {
+    const job = await this.requireJob(videoId);
+    const updatedRecords: SceneProviderJobRecord[] = [];
+    let changed = false;
+
+    for (const record of job.providerJobIds ?? []) {
+      const status = record.status.toLowerCase();
+      if (status === "completed" || status === "failed") {
+        updatedRecords.push(record);
+        continue;
+      }
+      if (record.provider === "runway") {
+        const runwayJob = await this.runwayService.getVideoJob(record.providerJobId);
+        const nextStatus = runwayJob.status.toLowerCase();
+        let localFilePath = record.localFilePath;
+        if (runwayJob.outputUri && !localFilePath && nextStatus === "completed") {
+          localFilePath = await this.mediaDownloadService.downloadSceneVideo(
+            videoId,
+            record.sceneId,
+            runwayJob.outputUri,
+          );
+        }
+        if (
+          nextStatus !== record.status.toLowerCase() ||
+          runwayJob.outputUri !== record.outputUri ||
+          localFilePath !== record.localFilePath
+        ) {
+          changed = true;
+        }
+        updatedRecords.push({
+          ...record,
+          status: nextStatus,
+          outputUri: runwayJob.outputUri ?? record.outputUri,
+          localFilePath,
+        });
+        continue;
+      }
+
+      const operation = await this.veoService.getVideoJob(record.providerJobId);
+      const done = operation.done;
+      const nextStatus = done ? "completed" : operation.metadata?.state?.toLowerCase() ?? "processing";
+      const outputUri =
+        operation.response?.outputUri ?? operation.response?.videoUri ?? operation.response?.uri ?? record.outputUri;
+      let localFilePath = record.localFilePath;
+      if (done && outputUri && !localFilePath) {
+        localFilePath = await this.mediaDownloadService.downloadSceneVideo(videoId, record.sceneId, outputUri);
+      }
+      if (
+        nextStatus !== record.status.toLowerCase() ||
+        outputUri !== record.outputUri ||
+        localFilePath !== record.localFilePath
+      ) {
+        changed = true;
+      }
+      updatedRecords.push({
+        ...record,
+        status: nextStatus,
+        outputUri,
+        localFilePath,
+      });
+    }
+
+    if (changed) {
+      const providerJobsPath = await this.storage.writeProviderJobs(videoId, updatedRecords);
+      await this.queue.updateJob(videoId, {
+        providerJobIds: updatedRecords,
+        assets: {
+          ...job.assets,
+          providerJobsPath,
+        },
+      });
+    }
+  }
+
+  async pollInFlightJobs(): Promise<void> {
+    const jobs = await this.queue.listJobs();
+    for (const job of jobs) {
+      const hasPending = (job.providerJobIds ?? []).some((record) => {
+        const status = record.status.toLowerCase();
+        return status !== "completed" && status !== "failed";
+      });
+      if (hasPending) {
+        await this.pollInFlightForJob(job.videoId);
+      }
+    }
+  }
+
+  private async shouldForcePrivateUpload(videoId: string): Promise<boolean> {
+    const allJobs = await this.queue.listJobs();
+    const uploadedCount = allJobs.filter((job) => Boolean(job.uploadResult?.youtubeVideoId)).length;
+    if (uploadedCount < 10) {
+      logger.info("Publish policy forcing private upload", { videoId, uploadedCount });
+      return true;
+    }
+    return false;
   }
 
   async listJobs(): Promise<VideoJob[]> {

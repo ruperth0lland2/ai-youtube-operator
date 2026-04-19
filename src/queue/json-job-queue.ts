@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import Database from "better-sqlite3";
 import { env } from "../config/env.js";
 import type { JobStateFile, RenderProvider, VideoJob } from "../models/video-job.js";
 import { readJsonFile, writeJsonFile } from "../utils/fs.js";
@@ -8,10 +9,23 @@ const EMPTY_STATE: JobStateFile = { jobs: [] };
 
 export class JsonJobQueue {
   private readonly queueFilePath: string;
+  private readonly sqlitePath: string;
+  private readonly sqliteEnabled: boolean;
   private writeChain: Promise<void> = Promise.resolve();
+  private db?: Database.Database;
 
   constructor(queueFilePath = env.QUEUE_FILE) {
     this.queueFilePath = queueFilePath;
+    this.sqlitePath = env.SQLITE_DB_PATH;
+    this.sqliteEnabled = env.USE_SQLITE;
+    if (this.sqliteEnabled) {
+      this.db = new Database(this.sqlitePath);
+      this.db
+        .prepare(
+          "CREATE TABLE IF NOT EXISTS jobs (video_id TEXT PRIMARY KEY, updated_at TEXT NOT NULL, payload TEXT NOT NULL)",
+        )
+        .run();
+    }
   }
 
   async listJobs(): Promise<VideoJob[]> {
@@ -105,10 +119,33 @@ export class JsonJobQueue {
   }
 
   private async readState(): Promise<JobStateFile> {
+    if (this.db) {
+      const rows = this.db
+        .prepare("SELECT payload FROM jobs ORDER BY datetime(updated_at) DESC")
+        .all() as Array<{ payload: string }>;
+      return { jobs: rows.map((row) => JSON.parse(row.payload) as VideoJob) };
+    }
     return readJsonFile<JobStateFile>(this.queueFilePath, EMPTY_STATE);
   }
 
   private async writeState(state: JobStateFile): Promise<void> {
+    if (this.db) {
+      const tx = this.db.transaction((jobs: VideoJob[]) => {
+        this.db?.prepare("DELETE FROM jobs").run();
+        const insert = this.db?.prepare(
+          "INSERT INTO jobs (video_id, updated_at, payload) VALUES (@videoId, @updatedAt, @payload)",
+        );
+        for (const job of jobs) {
+          insert?.run({
+            videoId: job.videoId,
+            updatedAt: job.updatedAt,
+            payload: JSON.stringify(job),
+          });
+        }
+      });
+      tx(state.jobs);
+      return;
+    }
     await writeJsonFile(this.queueFilePath, state);
   }
 }
